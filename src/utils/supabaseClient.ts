@@ -10,4 +10,24 @@ if (!supabaseUrl || !supabaseKey) {
   console.error("Supabase URL and/or Anon Key are missing. Please set the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Create a mock client if Supabase credentials are missing
+export const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : {
+      // Mock implementation of required methods
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+        signUp: async () => ({ data: null, error: new Error("Supabase not configured") }),
+        signInWithPassword: async () => ({ data: { user: null }, error: new Error("Supabase not configured") }),
+        signOut: async () => ({ error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({ data: null, error: new Error("Supabase not configured") }),
+          order: () => ({ data: null, error: new Error("Supabase not configured") }),
+        }),
+        insert: () => ({ error: new Error("Supabase not configured") }),
+        delete: () => ({ error: new Error("Supabase not configured") }),
+      }),
+    };
