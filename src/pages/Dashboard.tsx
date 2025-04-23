@@ -24,23 +24,54 @@ const COLORS = ["#8B5CF6", "#C4B5FD", "#7E69AB", "#10B981", "#EF4444", "#6366F1"
 const Dashboard = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [balance, setBalance] = useState<number>(0);
+  const [totalIncome, setTotalIncome] = useState<number>(0);
+  const [totalExpense, setTotalExpense] = useState<number>(0);
+  const [barChartData, setBarChartData] = useState<any[]>([]);
+  const [pieChartData, setPieChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   
   useEffect(() => {
-    const allTransactions = getTransactions();
-    setTransactions(allTransactions);
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        // Fetch all financial data
+        const allTransactions = await getTransactions();
+        setTransactions(allTransactions);
+        
+        // Get recent transactions (last 5)
+        const recent = [...allTransactions]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 5);
+        setRecentTransactions(recent);
+        
+        // Get financial summaries
+        const currentBalance = await getBalance();
+        const income = await getTotalIncome();
+        const expense = await getTotalExpense();
+        
+        setBalance(currentBalance);
+        setTotalIncome(income);
+        setTotalExpense(expense);
+        
+        // Prepare charts data
+        prepareChartData(allTransactions);
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    // Get recent transactions (last 5)
-    const recent = [...allTransactions]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-    setRecentTransactions(recent);
+    fetchData();
   }, []);
   
   // Prepare data for charts
-  const prepareBarChartData = () => {
+  const prepareChartData = (txns: Transaction[]) => {
+    // Bar chart data - category vs income/expense
     const categoryMap: Record<string, { income: number; expense: number }> = {};
     
-    transactions.forEach((transaction) => {
+    txns.forEach((transaction) => {
       if (!categoryMap[transaction.category]) {
         categoryMap[transaction.category] = { income: 0, expense: 0 };
       }
@@ -52,18 +83,17 @@ const Dashboard = () => {
       }
     });
     
-    return Object.entries(categoryMap).map(([category, data]) => ({
+    const barData = Object.entries(categoryMap).map(([category, data]) => ({
       name: category,
       Income: data.income,
       Expense: data.expense,
     }));
-  };
-  
-  const preparePieChartData = () => {
+    setBarChartData(barData);
+    
+    // Pie chart data - expenses by category
     const expensesByCategory: Record<string, number> = {};
     
-    transactions
-      .filter((t) => t.type === "expense")
+    txns.filter((t) => t.type === "expense")
       .forEach((transaction) => {
         if (!expensesByCategory[transaction.category]) {
           expensesByCategory[transaction.category] = 0;
@@ -71,17 +101,23 @@ const Dashboard = () => {
         expensesByCategory[transaction.category] += transaction.amount;
       });
     
-    return Object.entries(expensesByCategory).map(([category, amount]) => ({
+    const pieData = Object.entries(expensesByCategory).map(([category, amount]) => ({
       name: category,
       value: amount,
     }));
+    setPieChartData(pieData);
   };
-  
-  const balance = getBalance();
-  const totalIncome = getTotalIncome();
-  const totalExpense = getTotalExpense();
-  const barChartData = prepareBarChartData();
-  const pieChartData = preparePieChartData();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 p-6 lg:p-8 ml-0 lg:ml-64 flex items-center justify-center">
+          <p className="text-lg text-gray-500">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -138,16 +174,22 @@ const Dashboard = () => {
                   <CardTitle>Income vs Expenses by Category</CardTitle>
                 </CardHeader>
                 <CardContent className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      <Bar dataKey="Income" fill="#8B5CF6" />
-                      <Bar dataKey="Expense" fill="#EF4444" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {barChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barChartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                        <Bar dataKey="Income" fill="#8B5CF6" />
+                        <Bar dataKey="Expense" fill="#EF4444" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-gray-400">No data available</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               
@@ -234,25 +276,31 @@ const Dashboard = () => {
                   <CardTitle>Expense Breakdown</CardTitle>
                 </CardHeader>
                 <CardContent className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {pieChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {pieChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieChartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {pieChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-gray-400">No expense data available</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

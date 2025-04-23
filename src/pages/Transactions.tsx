@@ -27,30 +27,52 @@ const Transactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     // Load transactions
-    const loadTransactions = () => {
-      const allTransactions = getTransactions().sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      setTransactions(allTransactions);
+    const loadTransactions = async () => {
+      try {
+        setIsLoading(true);
+        const allTransactions = await getTransactions();
+        setTransactions(allTransactions.sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        ));
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        toast({
+          title: "Failed to load transactions",
+          description: "There was an error loading your transactions. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadTransactions();
-  }, []);
+  }, [toast]);
 
-  const handleDeleteTransaction = (id: string) => {
-    removeTransaction(id);
-    
-    // Update the transactions list
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    
-    toast({
-      title: "Transaction deleted",
-      description: "The transaction has been removed from your records.",
-    });
+  const handleDeleteTransaction = async (id: string) => {
+    try {
+      await removeTransaction(id);
+      
+      // Update the transactions list
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      
+      toast({
+        title: "Transaction deleted",
+        description: "The transaction has been removed from your records.",
+      });
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      toast({
+        title: "Failed to delete",
+        description: "There was an error deleting the transaction. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Filter transactions based on searchTerm and filterType
@@ -120,7 +142,11 @@ const Transactions = () => {
               </div>
             </div>
             
-            {filteredTransactions.length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-10">
+                <p className="text-gray-500">Loading transactions...</p>
+              </div>
+            ) : filteredTransactions.length > 0 ? (
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>

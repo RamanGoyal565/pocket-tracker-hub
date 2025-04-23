@@ -29,11 +29,15 @@ export function logoutUser(): void {
   supabase.auth.signOut();
 }
 
-export function getCurrentUser(): User | null {
-  const user = supabase.auth.getUser();
-  if (!user) return null;
-  // user is a promise, so return null (UI code should use Supabase hooks for live user)
-  return null;
+export async function getCurrentUser(): Promise<User | null> {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  
+  return {
+    email: data.user.email!,
+    password: '', // We don't store this
+    name: data.user.user_metadata?.name || data.user.email!.split("@")[0],
+  };
 }
 
 // --- TRANSACTIONS ---
@@ -89,6 +93,7 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }

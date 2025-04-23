@@ -1,6 +1,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types/finance";
+import { supabase } from "@/utils/supabaseClient";
 import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/utils/finance";
 
 interface AuthContextType {
@@ -19,30 +20,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // You should use supabase.auth.onAuthStateChange in real world apps
-    setIsLoading(false);
+    const checkUser = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error("Error checking authentication:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(async () => {
+      await checkUser();
+    });
+
+    // Initial check
+    checkUser();
+
+    // Cleanup
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
-    const user = await loginUser(email, password);
-    if (user) {
-      setUser(user);
-      return true;
+    try {
+      const user = await loginUser(email, password);
+      if (user) {
+        setUser(user);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
-    logoutUser();
-    setUser(null);
+    try {
+      logoutUser();
+      setUser(null);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   const register = async (user: User) => {
-    const success = await registerUser(user);
-    if (success) {
-      setUser(user);
+    try {
+      const success = await registerUser(user);
+      if (success) {
+        setUser(user);
+      }
+      return success;
+    } catch (error) {
+      console.error("Registration error:", error);
+      return false;
     }
-    return success;
   };
 
   return (
