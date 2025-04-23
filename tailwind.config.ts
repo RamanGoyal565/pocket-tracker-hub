@@ -36,6 +36,13 @@ export default {
 					DEFAULT: 'hsl(var(--destructive))',
 					foreground: 'hsl(var(--destructive-foreground))'
 				},
+				finance: {
+					purple: '#8B5CF6',
+					'purple-light': '#C4B5FD',
+					'purple-dark': '#7E69AB',
+					success: '#10B981',
+					danger: '#EF4444',
+				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
 					foreground: 'hsl(var(--muted-foreground))'
