@@ -15,7 +15,7 @@ export async function registerUser(user: User): Promise<boolean> {
 
 export async function loginUser(email: string, password: string): Promise<User | null> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (data.user) {
+  if (data?.user) {
     return {
       email: data.user.email!,
       password: password, // Not stored/used, just typed for compatibility
@@ -31,7 +31,7 @@ export function logoutUser(): void {
 
 export async function getCurrentUser(): Promise<User | null> {
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
+  if (!data?.user) return null;
   
   return {
     email: data.user.email!,
@@ -46,31 +46,41 @@ export async function addTransaction(transaction: Transaction): Promise<void> {
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
-  const { data, error } = await supabase
+  const response = await supabase
     .from("transactions")
     .select("*")
     .order("date", { ascending: false });
-  return data || [];
+  
+  return response.data || [];
 }
 
 export async function removeTransaction(id: string): Promise<void> {
-  await supabase.from("transactions").delete().eq("id", id);
+  // Safely handle the case where eq method might not exist
+  const query = supabase.from("transactions").delete();
+  if ('eq' in query) {
+    await query.eq("id", id);
+  } else {
+    // If eq doesn't exist, we're using the mock client
+    console.error("Cannot delete transaction - Supabase not configured");
+  }
 }
 
 export async function getTotalIncome(): Promise<number> {
-  const { data } = await supabase
+  const response = await supabase
     .from("transactions")
     .select("amount")
     .eq("type", "income");
-  return (data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+  
+  return (response.data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
 }
 
 export async function getTotalExpense(): Promise<number> {
-  const { data } = await supabase
+  const response = await supabase
     .from("transactions")
     .select("amount")
     .eq("type", "expense");
-  return (data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+  
+  return (response.data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
 }
 
 export async function getBalance(): Promise<number> {
@@ -80,8 +90,10 @@ export async function getBalance(): Promise<number> {
 }
 
 export async function getCategoryTotals(): Promise<Record<string, number>> {
-  const { data } = await supabase.from("transactions").select("*");
-  return (data || []).reduce((categories: Record<string, number>, tr: any) => {
+  const response = await supabase.from("transactions").select("*");
+  const transactions = response.data || [];
+  
+  return transactions.reduce((categories: Record<string, number>, tr: any) => {
     const { category, amount, type } = tr;
     if (!categories[category]) categories[category] = 0;
     categories[category] += type === 'income' ? amount : -amount;
