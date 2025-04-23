@@ -19,14 +19,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
+    // You should use supabase.auth.onAuthStateChange in real world apps
     setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
-    const user = loginUser(email, password);
+    const user = await loginUser(email, password);
     if (user) {
       setUser(user);
       return true;
@@ -40,10 +38,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const register = async (user: User) => {
-    const success = registerUser(user);
+    const success = await registerUser(user);
     if (success) {
       setUser(user);
-      localStorage.setItem('currentUser', JSON.stringify(user));
     }
     return success;
   };

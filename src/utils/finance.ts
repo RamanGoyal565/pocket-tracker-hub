@@ -1,98 +1,94 @@
 
+// Supabase-backed utility functions for authentication and transactions
+import { supabase } from "./supabaseClient";
 import { Transaction, User } from "@/types/finance";
 
-// Authentication utilities
-export const registerUser = (user: User): boolean => {
-  const users = getUsers();
-  
-  // Check if user already exists
-  if (users.find(u => u.email === user.email)) {
-    return false;
-  }
-  
-  users.push(user);
-  localStorage.setItem('financeUsers', JSON.stringify(users));
-  return true;
-};
+// --- USER AUTH ---
+export async function registerUser(user: User): Promise<boolean> {
+  const { error } = await supabase.auth.signUp({
+    email: user.email,
+    password: user.password,
+    options: { data: { name: user.name } }
+  });
+  return !error;
+}
 
-export const loginUser = (email: string, password: string): User | null => {
-  const users = getUsers();
-  const user = users.find(u => u.email === email && u.password === password);
-  
-  if (user) {
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    return user;
-  }
-  
-  return null;
-};
-
-export const logoutUser = (): void => {
-  localStorage.removeItem('currentUser');
-};
-
-export const getCurrentUser = (): User | null => {
-  const userJson = localStorage.getItem('currentUser');
-  return userJson ? JSON.parse(userJson) : null;
-};
-
-export const getUsers = (): User[] => {
-  const usersJson = localStorage.getItem('financeUsers');
-  return usersJson ? JSON.parse(usersJson) : [];
-};
-
-// Transaction utilities
-export const addTransaction = (transaction: Transaction): void => {
-  const transactions = getTransactions();
-  transactions.push(transaction);
-  localStorage.setItem('transactions', JSON.stringify(transactions));
-};
-
-export const getTransactions = (): Transaction[] => {
-  const transactionsJson = localStorage.getItem('transactions');
-  return transactionsJson ? JSON.parse(transactionsJson) : [];
-};
-
-export const removeTransaction = (id: string): void => {
-  let transactions = getTransactions();
-  transactions = transactions.filter(t => t.id !== id);
-  localStorage.setItem('transactions', JSON.stringify(transactions));
-};
-
-export const getTotalIncome = (): number => {
-  const transactions = getTransactions();
-  return transactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-};
-
-export const getTotalExpense = (): number => {
-  const transactions = getTransactions();
-  return transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-};
-
-export const getBalance = (): number => {
-  return getTotalIncome() - getTotalExpense();
-};
-
-export const getCategoryTotals = (): Record<string, number> => {
-  const transactions = getTransactions();
-  return transactions.reduce((categories: Record<string, number>, transaction) => {
-    const { category, amount, type } = transaction;
-    if (!categories[category]) {
-      categories[category] = 0;
+export async function loginUser(email: string, password: string): Promise<User | null> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (data.user) {
+    return {
+      email: data.user.email!,
+      password: password, // Not stored/used, just typed for compatibility
+      name: data.user.user_metadata?.name || data.user.email!.split("@")[0],
     }
+  }
+  return null;
+}
+
+export function logoutUser(): void {
+  supabase.auth.signOut();
+}
+
+export function getCurrentUser(): User | null {
+  const user = supabase.auth.getUser();
+  if (!user) return null;
+  // user is a promise, so return null (UI code should use Supabase hooks for live user)
+  return null;
+}
+
+// --- TRANSACTIONS ---
+export async function addTransaction(transaction: Transaction): Promise<void> {
+  await supabase.from("transactions").insert([transaction]);
+}
+
+export async function getTransactions(): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .order("date", { ascending: false });
+  return data || [];
+}
+
+export async function removeTransaction(id: string): Promise<void> {
+  await supabase.from("transactions").delete().eq("id", id);
+}
+
+export async function getTotalIncome(): Promise<number> {
+  const { data } = await supabase
+    .from("transactions")
+    .select("amount")
+    .eq("type", "income");
+  return (data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+}
+
+export async function getTotalExpense(): Promise<number> {
+  const { data } = await supabase
+    .from("transactions")
+    .select("amount")
+    .eq("type", "expense");
+  return (data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+}
+
+export async function getBalance(): Promise<number> {
+  const inc = await getTotalIncome();
+  const exp = await getTotalExpense();
+  return inc - exp;
+}
+
+export async function getCategoryTotals(): Promise<Record<string, number>> {
+  const { data } = await supabase.from("transactions").select("*");
+  return (data || []).reduce((categories: Record<string, number>, tr: any) => {
+    const { category, amount, type } = tr;
+    if (!categories[category]) categories[category] = 0;
     categories[category] += type === 'income' ? amount : -amount;
     return categories;
   }, {});
-};
+}
 
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
     minimumFractionDigits: 2,
   }).format(amount);
-};
+}
