@@ -91,7 +91,8 @@ export async function getBalance(): Promise<number> {
 
 export async function getCategoryTotals(): Promise<Record<string, number>> {
   const response = await supabase.from("transactions").select("*");
-  const transactions = response.data || [];
+  // Safely handle the case where response might not have a data property
+  const transactions = 'data' in response ? response.data : [];
   
   return transactions.reduce((categories: Record<string, number>, tr: any) => {
     const { category, amount, type } = tr;
