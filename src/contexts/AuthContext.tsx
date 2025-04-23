@@ -1,8 +1,8 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types/finance";
 import { supabase } from "@/utils/supabaseClient";
 import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/utils/finance";
+import { useToast } from "@/components/ui/use-toast";
 
 interface AuthContextType {
   user: User | null;
@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -26,6 +27,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(currentUser);
       } catch (error) {
         console.error("Error checking authentication:", error);
+        toast({
+          title: "Authentication Error",
+          description: "Could not connect to authentication service. Please check your Supabase configuration.",
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
@@ -43,7 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   const login = async (email: string, password: string) => {
     try {
