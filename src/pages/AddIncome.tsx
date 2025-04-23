@@ -22,25 +22,18 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { addTransaction } from "@/utils/finance";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { INCOME_CATEGORIES, PAYMENT_MODES } from "@/types/finance";
 
 const formSchema = z.object({
   amount: z.coerce.number().positive({ message: "Amount must be positive" }),
   description: z.string().min(3, { message: "Description must be at least 3 characters" }),
   category: z.string().min(1, { message: "Please select a category" }),
   date: z.string().min(1, { message: "Please select a date" }),
+  paymentMode: z.string().optional(),
+  tags: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
-
-// Predefined categories for income
-const INCOME_CATEGORIES = [
-  "Salary",
-  "Freelance",
-  "Investment",
-  "Gift",
-  "Bonus",
-  "Other",
-];
 
 const AddIncome = () => {
   const { toast } = useToast();
@@ -53,6 +46,8 @@ const AddIncome = () => {
       description: "",
       category: "",
       date: new Date().toISOString().split("T")[0],
+      paymentMode: "netbanking",
+      tags: "",
     },
   });
   
@@ -64,13 +59,15 @@ const AddIncome = () => {
       category: data.category,
       date: data.date,
       type: "income" as const,
+      paymentMode: data.paymentMode as any,
+      tags: data.tags ? data.tags.split(',').map(tag => tag.trim()) : [],
     };
     
     addTransaction(transaction);
     
     toast({
       title: "Income added!",
-      description: `$${data.amount} has been added to your account.`,
+      description: `₹${data.amount} has been added to your account.`,
     });
     
     navigate("/dashboard");
@@ -94,11 +91,11 @@ const AddIncome = () => {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount ($)</FormLabel>
+                      <FormLabel>Amount (₹)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="0.00" {...field} />
                       </FormControl>
-                      <FormDescription>Enter the income amount in USD</FormDescription>
+                      <FormDescription>Enter the income amount in INR</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -136,13 +133,42 @@ const AddIncome = () => {
                         </FormControl>
                         <SelectContent>
                           {INCOME_CATEGORIES.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
+                            <SelectItem key={category.id} value={category.name}>
+                              {category.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <FormDescription>Select the income category</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="paymentMode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Payment Mode</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment mode" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PAYMENT_MODES.map((mode) => (
+                            <SelectItem key={mode} value={mode}>
+                              <span className="capitalize">{mode}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>How did you receive the payment?</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -158,6 +184,21 @@ const AddIncome = () => {
                         <Input type="date" {...field} />
                       </FormControl>
                       <FormDescription>Date of the income</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="tags"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tags (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="recurring, bonus" {...field} />
+                      </FormControl>
+                      <FormDescription>Comma-separated tags for better organization</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -2,11 +2,19 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDown, ArrowUp, CreditCard, DollarSign, Calendar } from "lucide-react";
-import { formatCurrency, getBalance, getTransactions, getTotalExpense, getTotalIncome } from "@/utils/finance";
+import { ArrowDown, ArrowUp, CreditCard, DollarSign, Calendar, Wallet, Smartphone, Globe } from "lucide-react";
+import {
+  formatCurrency,
+  getBalance,
+  getTransactions,
+  getTotalExpense,
+  getTotalIncome,
+  getTransactionsByCategory,
+  getTransactionsByPaymentMode
+} from "@/utils/finance";
 import { Transaction } from "@/types/finance";
 import { Sidebar } from "@/components/finance/Sidebar";
-import { 
+import {
   BarChart,
   Bar,
   XAxis,
@@ -17,13 +25,26 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend
 } from "recharts";
+import { Badge } from "@/components/ui/badge";
 
-const COLORS = ["#8B5CF6", "#C4B5FD", "#7E69AB", "#10B981", "#EF4444", "#6366F1", "#14B8A6", "#F59E0B"];
+const COLORS = ["#8B5CF6", "#10B981", "#EF4444", "#6366F1", "#14B8A6", "#F59E0B", "#EC4899", "#06B6D4"];
+const PAYMENT_COLORS = {
+  cash: "#10B981",
+  upi: "#6366F1",
+  netbanking: "#8B5CF6",
+  card: "#F59E0B",
+  other: "#64748B"
+};
 
 const Dashboard = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [expensesByCategory, setExpensesByCategory] = useState<any[]>([]);
+  const [incomeByCategory, setIncomeByCategory] = useState<any[]>([]);
+  const [paymentModeData, setPaymentModeData] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   
   useEffect(() => {
     const allTransactions = getTransactions();
@@ -34,54 +55,81 @@ const Dashboard = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
     setRecentTransactions(recent);
+    
+    // Process expense by category data
+    const expenseData = getTransactionsByCategory('expense');
+    setExpensesByCategory(
+      Object.entries(expenseData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+    );
+    
+    // Process income by category data
+    const incomeData = getTransactionsByCategory('income');
+    setIncomeByCategory(
+      Object.entries(incomeData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+    );
+    
+    // Process payment mode data
+    const paymentData = getTransactionsByPaymentMode();
+    setPaymentModeData(
+      Object.entries(paymentData)
+        .map(([name, value]) => ({ name, value, color: (PAYMENT_COLORS as any)[name] || "#64748B" }))
+        .sort((a, b) => b.value - a.value)
+    );
+    
+    // Generate monthly data
+    const monthlyTransactions = generateMonthlyData(allTransactions);
+    setMonthlyData(monthlyTransactions);
   }, []);
   
-  // Prepare data for charts
-  const prepareBarChartData = () => {
-    const categoryMap: Record<string, { income: number; expense: number }> = {};
+  // Prepare monthly data for charts
+  const generateMonthlyData = (allTransactions: Transaction[]) => {
+    const months: Record<string, { month: string, income: number, expense: number }> = {};
     
-    transactions.forEach((transaction) => {
-      if (!categoryMap[transaction.category]) {
-        categoryMap[transaction.category] = { income: 0, expense: 0 };
+    allTransactions.forEach(transaction => {
+      const date = new Date(transaction.date);
+      const monthYear = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
+      
+      if (!months[monthYear]) {
+        months[monthYear] = { month: monthYear, income: 0, expense: 0 };
       }
       
-      if (transaction.type === "income") {
-        categoryMap[transaction.category].income += transaction.amount;
+      if (transaction.type === 'income') {
+        months[monthYear].income += transaction.amount;
       } else {
-        categoryMap[transaction.category].expense += transaction.amount;
+        months[monthYear].expense += transaction.amount;
       }
     });
     
-    return Object.entries(categoryMap).map(([category, data]) => ({
-      name: category,
-      Income: data.income,
-      Expense: data.expense,
-    }));
+    return Object.values(months).sort((a, b) => {
+      const aDate = new Date(a.month.split(' ')[0] + " 1, " + a.month.split(' ')[1]);
+      const bDate = new Date(b.month.split(' ')[0] + " 1, " + b.month.split(' ')[1]);
+      return aDate.getTime() - bDate.getTime();
+    }).slice(-6); // Last 6 months
   };
   
-  const preparePieChartData = () => {
-    const expensesByCategory: Record<string, number> = {};
-    
-    transactions
-      .filter((t) => t.type === "expense")
-      .forEach((transaction) => {
-        if (!expensesByCategory[transaction.category]) {
-          expensesByCategory[transaction.category] = 0;
-        }
-        expensesByCategory[transaction.category] += transaction.amount;
-      });
-    
-    return Object.entries(expensesByCategory).map(([category, amount]) => ({
-      name: category,
-      value: amount,
-    }));
+  // Helper for getting payment mode icon
+  const getPaymentModeIcon = (paymentMode?: string) => {
+    switch(paymentMode) {
+      case 'cash':
+        return <Wallet className="h-4 w-4 mr-1 text-green-500" />;
+      case 'upi':
+        return <Smartphone className="h-4 w-4 mr-1 text-indigo-500" />;
+      case 'netbanking':
+        return <Globe className="h-4 w-4 mr-1 text-purple-500" />;
+      case 'card':
+        return <CreditCard className="h-4 w-4 mr-1 text-amber-500" />;
+      default:
+        return null;
+    }
   };
   
   const balance = getBalance();
   const totalIncome = getTotalIncome();
   const totalExpense = getTotalExpense();
-  const barChartData = prepareBarChartData();
-  const pieChartData = preparePieChartData();
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -91,7 +139,7 @@ const Dashboard = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Financial Dashboard</h1>
         
         <div className="grid gap-6 md:grid-cols-3">
-          <Card>
+          <Card className="bg-gradient-to-br from-white to-purple-50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
               <DollarSign className={`h-4 w-4 ${balance >= 0 ? "text-finance-success" : "text-finance-danger"}`} />
@@ -102,7 +150,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="bg-gradient-to-br from-white to-green-50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Income</CardTitle>
               <ArrowUp className="h-4 w-4 text-finance-success" />
@@ -113,7 +161,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="bg-gradient-to-br from-white to-red-50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
               <ArrowDown className="h-4 w-4 text-finance-danger" />
@@ -129,23 +177,26 @@ const Dashboard = () => {
           <Tabs defaultValue="overview">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="income">Income</TabsTrigger>
               <TabsTrigger value="expenses">Expenses</TabsTrigger>
+              <TabsTrigger value="payments">Payment Modes</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="space-y-6">
               <Card className="col-span-4">
                 <CardHeader>
-                  <CardTitle>Income vs Expenses by Category</CardTitle>
+                  <CardTitle>Monthly Financial Overview</CardTitle>
                 </CardHeader>
                 <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barChartData}>
+                    <BarChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
+                      <XAxis dataKey="month" />
                       <YAxis />
                       <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      <Bar dataKey="Income" fill="#8B5CF6" />
-                      <Bar dataKey="Expense" fill="#EF4444" />
+                      <Legend />
+                      <Bar name="Income" dataKey="income" fill="#10B981" />
+                      <Bar name="Expense" dataKey="expense" fill="#EF4444" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -180,9 +231,16 @@ const Dashboard = () => {
                               </div>
                               <div>
                                 <p className="font-medium">{transaction.description}</p>
-                                <p className="text-xs text-gray-500">
-                                  {transaction.category} • {new Date(transaction.date).toLocaleDateString()}
-                                </p>
+                                <div className="flex items-center text-xs text-gray-500 gap-2">
+                                  <Badge variant="outline" className="font-normal">{transaction.category}</Badge> 
+                                  {transaction.paymentMode && (
+                                    <span className="flex items-center">
+                                      {getPaymentModeIcon(transaction.paymentMode)}
+                                      <span className="capitalize">{transaction.paymentMode}</span>
+                                    </span>
+                                  )}
+                                  <span>• {new Date(transaction.date).toLocaleDateString('en-IN')}</span>
+                                </div>
                               </div>
                             </div>
                             <div
@@ -228,6 +286,36 @@ const Dashboard = () => {
               </div>
             </TabsContent>
             
+            <TabsContent value="income" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Income by Category</CardTitle>
+                </CardHeader>
+                <CardContent className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={incomeByCategory}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#10B981"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {incomeByCategory.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="expenses" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -237,7 +325,7 @@ const Dashboard = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={pieChartData}
+                        data={expensesByCategory}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
@@ -246,11 +334,42 @@ const Dashboard = () => {
                         dataKey="value"
                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       >
-                        {pieChartData.map((entry, index) => (
+                        {expensesByCategory.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="payments" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Expenses by Payment Mode</CardTitle>
+                </CardHeader>
+                <CardContent className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={paymentModeData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {paymentModeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
