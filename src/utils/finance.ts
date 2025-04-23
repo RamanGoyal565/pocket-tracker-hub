@@ -51,7 +51,8 @@ export async function getTransactions(): Promise<Transaction[]> {
     .select("*")
     .order("date", { ascending: false });
   
-  return response.data || [];
+  // Safely handle the case where response might not have a data property
+  return 'data' in response ? response.data : [];
 }
 
 export async function removeTransaction(id: string): Promise<void> {
@@ -71,7 +72,9 @@ export async function getTotalIncome(): Promise<number> {
     .select("amount")
     .eq("type", "income");
   
-  return (response.data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+  // Safely handle the case where response might not have a data property
+  const data = 'data' in response ? response.data : [];
+  return data.reduce((sum: number, tr: any) => sum + tr.amount, 0);
 }
 
 export async function getTotalExpense(): Promise<number> {
@@ -80,7 +83,9 @@ export async function getTotalExpense(): Promise<number> {
     .select("amount")
     .eq("type", "expense");
   
-  return (response.data || []).reduce((sum: number, tr: any) => sum + tr.amount, 0);
+  // Safely handle the case where response might not have a data property
+  const data = 'data' in response ? response.data : [];
+  return data.reduce((sum: number, tr: any) => sum + tr.amount, 0);
 }
 
 export async function getBalance(): Promise<number> {
