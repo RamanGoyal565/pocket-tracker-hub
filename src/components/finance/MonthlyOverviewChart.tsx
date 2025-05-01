@@ -30,7 +30,7 @@ export function MonthlyOverviewChart({ data }: MonthlyOverviewChartProps) {
             <YAxis />
             <Tooltip formatter={(value) => formatCurrency(Number(value))} />
             <Legend />
-            <Bar name="Income" dataKey="income" fill="#10B981" />
+            <Bar name="Incomes" dataKey="income" fill="#10B981" />
             <Bar name="Expense" dataKey="expense" fill="#EF4444" />
           </BarChart>
         </ResponsiveContainer>
